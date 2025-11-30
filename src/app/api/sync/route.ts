@@ -28,17 +28,17 @@ export async function POST(request: Request) {
         await db.insert(customers).values({
             tenantId: tenant.id,
             shopifyId: node.id,
-            firstName: node.firstName,
-            lastName: node.lastName,
-            email: node.email,
+            firstName: 'Redacted',
+            lastName: 'Redacted',
+            email: 'redacted@example.com',
             totalSpent: node.amountSpent?.amount || '0',
-            ordersCount: node.ordersCount,
+            ordersCount: node.numberOfOrders,
             createdAt: new Date(node.createdAt),
         }).onConflictDoUpdate({
             target: [customers.shopifyId, customers.tenantId],
             set: {
             totalSpent: node.amountSpent?.amount || '0',
-            ordersCount: node.ordersCount,
+            ordersCount: node.numberOfOrders,
             updatedAt: new Date(),
             }
         });
