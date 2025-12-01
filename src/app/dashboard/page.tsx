@@ -4,7 +4,10 @@ import { eq, desc, sql } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Overview } from "@/components/overview";
 import { RecentSales } from "@/components/recent-sales";
-import { Users, CreditCard, DollarSign, Activity } from "lucide-react";
+import { SyncButton } from "@/components/sync-button";
+import { Users, CreditCard, DollarSign, Activity, Plus } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default async function DashboardPage() {
   // TODO: Get tenantId from session
@@ -65,6 +68,15 @@ export default async function DashboardPage() {
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <div className="flex items-center space-x-2">
+          <Link href="/tenants/new">
+            <Button size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Store
+            </Button>
+          </Link>
+          <SyncButton tenantId={tenantId} />
+        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
