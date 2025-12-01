@@ -17,8 +17,13 @@ export function SyncButton({ tenantId }: { tenantId: number }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenantId }),
       })
+
+      console.log("------------------------------------");
       
-      if (!res.ok) throw new Error('Sync failed')
+      console.log(tenantId);
+      
+      
+      if (!res.ok) throw new Error('Sync failed', { cause: res })
       
       // Refresh the page to show new data
       router.refresh()

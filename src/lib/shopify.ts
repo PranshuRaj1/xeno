@@ -1,7 +1,8 @@
 const SHOPIFY_API_VERSION = '2024-01';
 
 export async function fetchShopify(shop: string, accessToken: string, query: string, variables = {}) {
-  const url = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
+  const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const url = `https://${cleanShop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
   
   const response = await fetch(url, {
     method: 'POST',

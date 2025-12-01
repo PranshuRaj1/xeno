@@ -13,9 +13,15 @@ export async function POST(request: Request) {
 
     const newTenant = await db.insert(tenants).values({
       storeName,
-      storeDomain,
-      accessToken,
+      storeDomain: storeDomain.trim(),
+      accessToken: accessToken.trim(),
     }).returning();
+
+    console.log("------------------");
+    
+
+    console.log(newTenant);
+    
 
     return NextResponse.json(newTenant[0]);
   } catch (error: any) {
