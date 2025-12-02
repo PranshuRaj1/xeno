@@ -25,12 +25,13 @@ export async function POST(request: Request) {
     if (customersData?.customers?.edges) {
         for (const edge of customersData.customers.edges) {
         const node = edge.node;
+        console.log("Processing Customer Node:", JSON.stringify(node, null, 2)); // DEBUG LOG
         await db.insert(customers).values({
             tenantId: tenant.id,
             shopifyId: node.id,
-            firstName: 'Redacted',
-            lastName: 'Redacted',
-            email: 'redacted@example.com',
+            firstName: node.firstName || 'Redacted',
+            lastName: node.lastName || 'Redacted',
+            email: node.email || 'redacted@example.com',
             totalSpent: node.amountSpent?.amount || '0',
             ordersCount: node.numberOfOrders,
             createdAt: new Date(node.createdAt),

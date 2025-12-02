@@ -19,8 +19,14 @@ export async function fetchShopify(shop: string, accessToken: string, query: str
   }
 
   const json = await response.json();
+  
+  // GraphQL can return data AND errors (partial success). 
+  // If we have data, we return it but log the errors.
   if (json.errors) {
-    throw new Error(`Shopify GraphQL Error: ${JSON.stringify(json.errors)}`);
+    console.warn(`⚠️ Shopify GraphQL Warning:`, JSON.stringify(json.errors, null, 2));
+    if (!json.data) {
+        throw new Error(`Shopify GraphQL Error: ${JSON.stringify(json.errors)}`);
+    }
   }
 
   return json.data;
@@ -36,6 +42,9 @@ export const GET_CUSTOMERS_QUERY = `
       edges {
         node {
           id
+          firstName
+          lastName
+          email
           amountSpent {
             amount
           }
