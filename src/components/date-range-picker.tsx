@@ -4,6 +4,7 @@ import * as React from "react"
 import { addDays, format } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
+import { useRouter, useSearchParams } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -17,10 +18,39 @@ import {
 export function DatePickerWithRange({
   className,
 }: React.HTMLAttributes<HTMLDivElement>) {
-  const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(2023, 0, 20),
-    to: addDays(new Date(2023, 0, 20), 20),
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  
+  // Initialize state from URL params or default to last 30 days
+  const [date, setDate] = React.useState<DateRange | undefined>(() => {
+    const fromParam = searchParams.get("from")
+    const toParam = searchParams.get("to")
+    
+    if (fromParam && toParam) {
+      return {
+        from: new Date(fromParam),
+        to: new Date(toParam)
+      }
+    }
+    
+    return {
+      from: addDays(new Date(), -30),
+      to: new Date(),
+    }
   })
+
+  // Update URL when date changes
+  React.useEffect(() => {
+    if (date?.from && date?.to) {
+      const newSearchParams = new URLSearchParams(searchParams.toString())
+      newSearchParams.set("from", date.from.toISOString())
+      newSearchParams.set("to", date.to.toISOString())
+      
+      if (newSearchParams.toString() !== searchParams.toString()) {
+        router.push(`?${newSearchParams.toString()}`)
+      }
+    }
+  }, [date, router, searchParams])
 
   return (
     <div className={cn("grid gap-2", className)}>

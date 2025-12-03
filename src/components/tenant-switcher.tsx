@@ -43,7 +43,8 @@ export function TenantSwitcher({ tenants, currentTenantId }: TenantSwitcherProps
           <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-[200px]">
+      {/* for dark background it should be black background with slight different tone and white text  */}
+      <DropdownMenuContent className="w-[200px] ">
         <DropdownMenuLabel>Stores</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {tenants.map((tenant) => (

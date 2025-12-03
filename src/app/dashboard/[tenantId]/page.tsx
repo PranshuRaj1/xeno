@@ -19,10 +19,12 @@ interface DashboardPageProps {
   params: Promise<{
     tenantId: string;
   }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function DashboardPage({ params }: DashboardPageProps) {
+export default async function DashboardPage({ params, searchParams }: DashboardPageProps) {
   const { tenantId: tenantIdStr } = await params;
+  const { from, to } = await searchParams;
   const tenantId = parseInt(tenantIdStr, 10);
 
   if (isNaN(tenantId)) {
@@ -41,18 +43,70 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
   // Fetch all tenants for switcher
   const allTenants = await db.query.tenants.findMany();
 
-  // 1. Basic Stats
-  const [customerCountRes] = await db
+  // 1. Determine Date Range
+  const now = new Date();
+  let startDate = new Date(now);
+  startDate.setDate(now.getDate() - 30); // Default to last 30 days
+  let endDate = now;
+
+  if (typeof from === 'string' && typeof to === 'string') {
+      startDate = new Date(from);
+      endDate = new Date(to);
+  }
+
+  // Calculate previous period (same duration)
+  const duration = endDate.getTime() - startDate.getTime();
+  const prevStartDate = new Date(startDate.getTime() - duration);
+  const prevEndDate = new Date(endDate.getTime() - duration);
+
+  // Helper to fetch stats for a date range
+  async function getStatsForRange(start: Date, end: Date) {
+      const [customerCountRes] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(and(eq(customers.tenantId, tenantId), gte(customers.createdAt, start), lte(customers.createdAt, end)));
+      
+      const [orderCountRes] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
+        .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, start), lte(orders.createdAt, end)));
+
+      const [revenueRes] = await db
+        .select({ total: sql<number>`sum(${orders.totalPrice})` })
+        .from(orders)
+        .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, start), lte(orders.createdAt, end)));
+
+      return {
+          customers: Number(customerCountRes?.count || 0),
+          orders: Number(orderCountRes?.count || 0),
+          revenue: Number(revenueRes?.total || 0),
+      };
+  }
+
+  const currentStats = await getStatsForRange(startDate, endDate);
+  const prevStats = await getStatsForRange(prevStartDate, prevEndDate);
+
+  const calculateGrowth = (current: number, prev: number) => {
+      if (prev === 0) return current > 0 ? 100 : 0;
+      return ((current - prev) / prev) * 100;
+  };
+
+  const customerGrowth = calculateGrowth(currentStats.customers, prevStats.customers);
+  const orderGrowth = calculateGrowth(currentStats.orders, prevStats.orders);
+  const revenueGrowth = calculateGrowth(currentStats.revenue, prevStats.revenue);
+
+  // Total Lifetime Stats (for display values)
+  const [totalCustomerRes] = await db
     .select({ count: sql<number>`count(*)` })
     .from(customers)
     .where(eq(customers.tenantId, tenantId));
-  const customerCount = Number(customerCountRes?.count || 0);
+  const totalCustomers = Number(totalCustomerRes?.count || 0);
 
-  const [orderCountRes] = await db
+  const [totalOrderRes] = await db
     .select({ count: sql<number>`count(*)` })
     .from(orders)
     .where(eq(orders.tenantId, tenantId));
-  const orderCount = Number(orderCountRes?.count || 0);
+  const totalOrders = Number(totalOrderRes?.count || 0);
 
   const [totalRevenueRes] = await db
     .select({ total: sql<number>`sum(${orders.totalPrice})` })
@@ -60,15 +114,27 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     .where(eq(orders.tenantId, tenantId));
   const totalRevenue = Number(totalRevenueRes?.total || 0);
 
-  // 2. Advanced KPIs
-  const aov = orderCount > 0 ? totalRevenue / orderCount : 0;
+  // 2. Advanced KPIs & Business Insights
+  const aov = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const clv = totalCustomers > 0 ? totalRevenue / totalCustomers : 0;
+  const avgOrdersPerCustomer = totalCustomers > 0 ? totalOrders / totalCustomers : 0;
 
   const [returningCustomersRes] = await db
     .select({ count: sql<number>`count(*)` })
     .from(customers)
     .where(and(eq(customers.tenantId, tenantId), sql`${customers.ordersCount} > 1`));
   const returningCustomerCount = Number(returningCustomersRes?.count || 0);
-  const returningRate = customerCount > 0 ? (returningCustomerCount / customerCount) * 100 : 0;
+  const returningRate = totalCustomers > 0 ? (returningCustomerCount / totalCustomers) * 100 : 0;
+
+  const [refundedOrdersRes] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(orders)
+    .where(and(
+        eq(orders.tenantId, tenantId), 
+        sql`lower(${orders.financialStatus}) LIKE '%refunded%'`
+    ));
+  const refundedCount = Number(refundedOrdersRes?.count || 0);
+  const refundRate = totalOrders > 0 ? (refundedCount / totalOrders) * 100 : 0;
 
   // 3. Chart Data: Orders by Date
   const chartDataRaw = await db
@@ -77,9 +143,9 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
       total: sql<number>`sum(${orders.totalPrice})`,
     })
     .from(orders)
-    .where(eq(orders.tenantId, tenantId))
+    .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startDate), lte(orders.createdAt, endDate)))
     .groupBy(sql`to_char(${orders.createdAt}, 'Mon DD')`)
-    .limit(7);
+    .orderBy(sql`min(${orders.createdAt})`);
   
   const chartData = chartDataRaw.map(d => ({ name: d.date, total: Number(d.total) }));
 
@@ -90,17 +156,39 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
         orders: sql<number>`count(${orders.id})`,
     })
     .from(orders)
-    .where(eq(orders.tenantId, tenantId))
+    .where(and(eq(orders.tenantId, tenantId), gte(orders.createdAt, startDate), lte(orders.createdAt, endDate)))
     .groupBy(sql`to_char(${orders.createdAt}, 'Mon DD')`)
-    .limit(7);
+    .orderBy(sql`min(${orders.createdAt})`);
 
-  // Note: This is a simplified join for demo. Ideally we'd join dates properly.
-  // For now, we'll just map orders. In a real app, we'd fetch customers grouped by date too and merge.
-  const acquisitionData = acquisitionDataRaw.map(d => ({
-      date: d.date,
-      orders: Number(d.orders),
-      customers: Math.floor(Math.random() * 5) // Mocking new customers for demo as we don't have enough data
-  }));
+  const newCustomersRaw = await db
+    .select({
+        date: sql<string>`to_char(${customers.createdAt}, 'Mon DD')`,
+        count: sql<number>`count(${customers.id})`,
+    })
+    .from(customers)
+    .where(and(eq(customers.tenantId, tenantId), gte(customers.createdAt, startDate), lte(customers.createdAt, endDate)))
+    .groupBy(sql`to_char(${customers.createdAt}, 'Mon DD')`)
+    .orderBy(sql`min(${customers.createdAt})`);
+
+  // Merge data
+  const acquisitionMap = new Map<string, { date: string; orders: number; customers: number }>();
+
+  acquisitionDataRaw.forEach(d => {
+      acquisitionMap.set(d.date, { date: d.date, orders: Number(d.orders), customers: 0 });
+  });
+
+  newCustomersRaw.forEach(d => {
+      if (acquisitionMap.has(d.date)) {
+          acquisitionMap.get(d.date)!.customers = Number(d.count);
+      } else {
+          acquisitionMap.set(d.date, { date: d.date, orders: 0, customers: Number(d.count) });
+      }
+  });
+
+  const acquisitionData = Array.from(acquisitionMap.values()).sort((a, b) => {
+      // Simple sort by date string (Mon DD) - good enough for short ranges in same year
+      return new Date(a.date + ", " + new Date().getFullYear()).getTime() - new Date(b.date + ", " + new Date().getFullYear()).getTime();
+  });
 
   // 5. Top Customers
   const topCustomersRaw = await db.query.customers.findMany({
@@ -161,7 +249,9 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground mt-1">+20.1% from last month</p>
+            <p className="text-xs text-muted-foreground mt-1">
+                {revenueGrowth >= 0 ? '+' : ''}{revenueGrowth.toFixed(1)}% from previous period
+            </p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-green-500">
@@ -170,8 +260,10 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
             <Users className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{customerCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">+180.1% from last month</p>
+            <div className="text-2xl font-bold">+{totalCustomers}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+                {customerGrowth >= 0 ? '+' : ''}{customerGrowth.toFixed(1)}% from previous period
+            </p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-orange-500">
@@ -180,8 +272,10 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
             <CreditCard className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+{orderCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">+19% from last month</p>
+            <div className="text-2xl font-bold">+{totalOrders}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+                {orderGrowth >= 0 ? '+' : ''}{orderGrowth.toFixed(1)}% from previous period
+            </p>
           </CardContent>
         </Card>
         <Card className="hover:shadow-lg transition-all duration-200 border-l-4 border-l-purple-500">
@@ -192,9 +286,54 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
           <CardContent>
             <div className="text-2xl font-bold">${aov.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Returning Rate: {returningRate.toFixed(1)}%
+              Per Order Average
             </p>
           </CardContent>
+        </Card>
+      </div>
+
+      {/* BUSINESS INSIGHTS GRID */}
+      <h3 className="text-xl font-semibold tracking-tight mt-8 mb-4">Business Health & Insights</h3>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Customer Lifetime Value</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">${clv.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground mt-1">Avg revenue per customer</p>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Returning Rate</CardTitle>
+                <UserPlus className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{returningRate.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground mt-1">{returningCustomerCount} returning customers</p>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Avg Orders / Customer</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{avgOrdersPerCustomer.toFixed(1)}</div>
+                <p className="text-xs text-muted-foreground mt-1">Purchase frequency</p>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Refund Rate</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{refundRate.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground mt-1">{refundedCount} refunded orders</p>
+            </CardContent>
         </Card>
       </div>
 

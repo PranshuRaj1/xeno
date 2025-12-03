@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTheme } from "next-themes"
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
 import { Button } from "@/components/ui/button"
 import { BarChart3, LineChart as LineChartIcon } from "lucide-react"
@@ -10,6 +11,7 @@ interface OverviewProps {
 }
 
 export function Overview({ data }: OverviewProps) {
+  const { resolvedTheme } = useTheme()
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar')
 
   return (
@@ -51,13 +53,13 @@ export function Overview({ data }: OverviewProps) {
             />
             <Tooltip 
                 cursor={{ fill: 'transparent' }}
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', color: 'black', backgroundColor: 'white' }}
             />
             <Bar
               dataKey="total"
               fill="currentColor"
               radius={[4, 4, 0, 0]}
-              className="fill-primary"
+              className={resolvedTheme === 'dark' ? "fill-green-500" : "fill-primary"}
             />
           </BarChart>
         ) : (
@@ -77,7 +79,7 @@ export function Overview({ data }: OverviewProps) {
               tickFormatter={(value) => `$${value}`}
             />
             <Tooltip 
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', color: 'black', backgroundColor: 'white' }}
             />
             <Line
               type="monotone"
@@ -85,7 +87,7 @@ export function Overview({ data }: OverviewProps) {
               stroke="currentColor"
               strokeWidth={2}
               dot={{ r: 4, fill: "currentColor" }}
-              className="stroke-primary fill-primary"
+              className={resolvedTheme === 'dark' ? "stroke-green-500 fill-green-500" : "stroke-primary fill-primary"}
             />
           </LineChart>
         )}
