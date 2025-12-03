@@ -43,8 +43,8 @@ export function DatePickerWithRange({
   React.useEffect(() => {
     if (date?.from && date?.to) {
       const newSearchParams = new URLSearchParams(searchParams.toString())
-      newSearchParams.set("from", date.from.toISOString())
-      newSearchParams.set("to", date.to.toISOString())
+      newSearchParams.set("from", format(date.from, "yyyy-MM-dd"))
+      newSearchParams.set("to", format(date.to, "yyyy-MM-dd"))
       
       if (newSearchParams.toString() !== searchParams.toString()) {
         router.push(`?${newSearchParams.toString()}`)

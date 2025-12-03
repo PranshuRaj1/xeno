@@ -50,8 +50,18 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
   let endDate = now;
 
   if (typeof from === 'string' && typeof to === 'string') {
-      startDate = new Date(from);
-      endDate = new Date(to);
+      // Parse YYYY-MM-DD and adjust to IST (UTC-5.5)
+      // "2025-12-02" -> UTC 00:00 -> IST 05:30. We want IST 00:00, which is UTC 18:30 prev day.
+      // Offset = 5.5 hours = 5.5 * 60 * 60 * 1000 ms
+      const istOffset = 5.5 * 60 * 60 * 1000;
+
+      const fromDate = new Date(from); // UTC 00:00
+      startDate = new Date(fromDate.getTime() - istOffset);
+
+      const toDate = new Date(to); // UTC 00:00
+      // Set to end of day in IST: 23:59:59.999
+      // UTC 00:00 + 24h - 1ms - 5.5h
+      endDate = new Date(toDate.getTime() + (24 * 60 * 60 * 1000) - 1 - istOffset);
   }
 
   // Calculate previous period (same duration)
