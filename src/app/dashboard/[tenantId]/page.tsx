@@ -10,6 +10,7 @@ import { Users, CreditCard, DollarSign, Activity, Plus, TrendingUp, UserPlus } f
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
+import { ComparisonSelector } from "@/components/comparison-selector";
 import { DatePickerWithRange } from "@/components/date-range-picker";
 import { TopCustomers } from "@/components/top-customers";
 import { AcquisitionChart } from "@/components/acquisition-chart";
@@ -24,8 +25,9 @@ interface DashboardPageProps {
 
 export default async function DashboardPage({ params, searchParams }: DashboardPageProps) {
   const { tenantId: tenantIdStr } = await params;
-  const { from, to } = await searchParams;
+  const { from, to, compare } = await searchParams;
   const tenantId = parseInt(tenantIdStr, 10);
+  const comparisonMode = (typeof compare === 'string' ? compare : 'period') as 'period' | 'month' | 'year';
 
   if (isNaN(tenantId)) {
       return <div>Invalid Tenant ID</div>;
@@ -64,10 +66,22 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
       endDate = new Date(toDate.getTime() + (24 * 60 * 60 * 1000) - 1 - istOffset);
   }
 
-  // Calculate previous period (same duration)
+  // Calculate previous period based on comparison mode
   const duration = endDate.getTime() - startDate.getTime();
-  const prevStartDate = new Date(startDate.getTime() - duration);
-  const prevEndDate = new Date(endDate.getTime() - duration);
+  let prevStartDate = new Date(startDate.getTime() - duration);
+  let prevEndDate = new Date(endDate.getTime() - duration);
+
+  if (comparisonMode === 'month') {
+      prevStartDate = new Date(startDate);
+      prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+      prevEndDate = new Date(endDate);
+      prevEndDate.setMonth(prevEndDate.getMonth() - 1);
+  } else if (comparisonMode === 'year') {
+      prevStartDate = new Date(startDate);
+      prevStartDate.setFullYear(prevStartDate.getFullYear() - 1);
+      prevEndDate = new Date(endDate);
+      prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
+  }
 
   // Helper to fetch stats for a date range
   async function getStatsForRange(start: Date, end: Date) {
@@ -104,6 +118,17 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
   const customerGrowth = calculateGrowth(currentStats.customers, prevStats.customers);
   const orderGrowth = calculateGrowth(currentStats.orders, prevStats.orders);
   const revenueGrowth = calculateGrowth(currentStats.revenue, prevStats.revenue);
+
+  const formatComparisonDate = (date: Date) => {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const comparisonRange = `${formatComparisonDate(prevStartDate)} - ${formatComparisonDate(prevEndDate)}`;
+
+  const comparisonLabel = 
+    comparisonMode === 'month' ? `vs last month (${comparisonRange})` :
+    comparisonMode === 'year' ? `vs last year (${comparisonRange})` :
+    `vs prev period (${comparisonRange})`;
 
   // Total Lifetime Stats (for display values)
   const [totalCustomerRes] = await db
@@ -238,6 +263,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
             <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
         </div>
         <div className="flex items-center space-x-2">
+          <ComparisonSelector />
           <DatePickerWithRange />
           <Link href="/tenants/new">
             <Button size="sm" className="cursor-pointer shadow-sm">
@@ -260,7 +286,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
           <CardContent>
             <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground mt-1">
-                {revenueGrowth >= 0 ? '+' : ''}{revenueGrowth.toFixed(1)}% from previous period
+                {revenueGrowth >= 0 ? '+' : ''}{revenueGrowth.toFixed(1)}% {comparisonLabel}
             </p>
           </CardContent>
         </Card>
@@ -272,7 +298,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
           <CardContent>
             <div className="text-2xl font-bold">+{totalCustomers}</div>
             <p className="text-xs text-muted-foreground mt-1">
-                {customerGrowth >= 0 ? '+' : ''}{customerGrowth.toFixed(1)}% from previous period
+                {customerGrowth >= 0 ? '+' : ''}{customerGrowth.toFixed(1)}% {comparisonLabel}
             </p>
           </CardContent>
         </Card>
@@ -284,7 +310,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
           <CardContent>
             <div className="text-2xl font-bold">+{totalOrders}</div>
             <p className="text-xs text-muted-foreground mt-1">
-                {orderGrowth >= 0 ? '+' : ''}{orderGrowth.toFixed(1)}% from previous period
+                {orderGrowth >= 0 ? '+' : ''}{orderGrowth.toFixed(1)}% {comparisonLabel}
             </p>
           </CardContent>
         </Card>

@@ -28,6 +28,26 @@ interface TenantSwitcherProps {
 export function TenantSwitcher({ tenants, currentTenantId }: TenantSwitcherProps) {
   const router = useRouter()
   const currentTenant = tenants.find((t) => t.id === currentTenantId)
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <Button
+        variant="outline"
+        role="combobox"
+        aria-label="Select a store"
+        className="w-[200px] justify-between cursor-pointer opacity-50 pointer-events-none"
+      >
+        <Store className="mr-2 h-4 w-4" />
+        {currentTenant?.storeName || "Select a store"}
+        <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+    )
+  }
 
   return (
     <DropdownMenu>

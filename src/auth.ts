@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import { db } from "@/db"
 import { users } from "@/db/schema"
 import { eq } from "drizzle-orm"
+import { compare } from "bcryptjs"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -28,8 +29,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null; 
         }
 
-        // Simple password check (Replace with bcrypt.compare in production)
-        if (user.password !== credentials.password) {
+        // Verify password
+        const passwordsMatch = await compare(credentials.password as string, user.password as string);
+
+        if (!passwordsMatch) {
             return null;
         }
 
