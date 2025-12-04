@@ -5,7 +5,10 @@ import { users } from "@/db/schema"
 import { eq } from "drizzle-orm"
 import { compare } from "bcryptjs"
 
+import { authConfig } from "./auth.config"
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -22,18 +25,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         if (!user) {
-            // In a real app, you'd hash passwords. For this demo, we'll do simple comparison 
-            // or assume the user is created with a plain password for simplicity (NOT RECOMMENDED FOR PROD)
-            // But since I can't easily seed hashed passwords without a script, I'll assume plain text for now
-            // OR better: create a seed script.
-            return null; 
+            
+            return { error: "User not found" , status: 401 }; 
         }
 
         // Verify password
         const passwordsMatch = await compare(credentials.password as string, user.password as string);
 
         if (!passwordsMatch) {
-            return null;
+            return { error: "Invalid password" , status: 401 };
         }
 
         return {
@@ -44,7 +44,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  pages: {
-    signIn: '/login', // We'll need to create this page or let NextAuth use default
-  },
 })

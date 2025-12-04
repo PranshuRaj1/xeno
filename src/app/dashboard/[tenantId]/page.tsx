@@ -15,6 +15,7 @@ import { DatePickerWithRange } from "@/components/date-range-picker";
 import { TopCustomers } from "@/components/top-customers";
 import { AcquisitionChart } from "@/components/acquisition-chart";
 import { ModeToggle } from "@/components/mode-toggle";
+import { LogoutButton } from "@/components/logout-button";
 
 interface DashboardPageProps {
   params: Promise<{
@@ -273,6 +274,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
           </Link>
           <SyncButton tenantId={tenantId} />
           <ModeToggle />
+          <LogoutButton />
         </div>
       </div>
 
