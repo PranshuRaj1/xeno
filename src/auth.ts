@@ -25,15 +25,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         });
 
         if (!user) {
-            
-            return { error: "User not found" , status: 401 }; 
+            return null; 
         }
 
         // Verify password
         const passwordsMatch = await compare(credentials.password as string, user.password as string);
 
         if (!passwordsMatch) {
-            return { error: "Invalid password" , status: 401 };
+            return null;
         }
 
         return {
