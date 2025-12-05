@@ -14,7 +14,7 @@ export async function fetchShopify(shop: string, accessToken: string, query: str
   });
 
   if (!response.ok) {
-    console.error(`❌ Failed to fetch: ${url}`);
+    console.error(` Failed to fetch: ${url}`);
     throw new Error(`Shopify API Error: ${response.statusText} (${response.status})`);
   }
 
@@ -23,7 +23,7 @@ export async function fetchShopify(shop: string, accessToken: string, query: str
   // GraphQL can return data AND errors (partial success). 
   // If we have data, we return it but log the errors.
   if (json.errors) {
-    console.warn(`⚠️ Shopify GraphQL Warning:`, JSON.stringify(json.errors, null, 2));
+    console.warn(` Shopify GraphQL Warning:`, JSON.stringify(json.errors, null, 2));
     if (!json.data) {
         throw new Error(`Shopify GraphQL Error: ${JSON.stringify(json.errors)}`);
     }
@@ -99,6 +99,22 @@ export const GET_ORDERS_QUERY = `
           createdAt
           customer {
             id
+          }
+          lineItems(first: 50) {
+            edges {
+              node {
+                title
+                quantity
+                originalTotalSet {
+                  shopMoney {
+                    amount
+                  }
+                }
+                product {
+                  id
+                }
+              }
+            }
           }
         }
       }

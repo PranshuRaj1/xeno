@@ -1,7 +1,7 @@
 import '@/lib/env-loader'; // Must be first
 import { db } from '@/db';
-import { tenants, customers, products, orders } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { tenants, customers, products, orders, orderItems } from '@/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { fetchShopify, GET_CUSTOMERS_QUERY, GET_PRODUCTS_QUERY, GET_ORDERS_QUERY } from '@/lib/shopify';
 
 if (!process.env.DATABASE_URL) {
@@ -12,7 +12,7 @@ if (!process.env.DATABASE_URL) {
 
 
 async function ingest() {
-  console.log('🚀 Starting Ingestion Process...');
+  console.log(' Starting Ingestion Process...');
 
   // 1. Get ALL active Tenant (Store) configurations
   const allTenants = await db.query.tenants.findMany({
@@ -35,9 +35,9 @@ async function ingest() {
       if (tenant.lastSyncedAt) {
           const lastSyncISO = tenant.lastSyncedAt.toISOString();
           queryParams.query = `updated_at:>'${lastSyncISO}'`;
-          console.log(`   🔄 Incremental Sync: Fetching items updated after ${lastSyncISO}`);
+          console.log(`    Incremental Sync: Fetching items updated after ${lastSyncISO}`);
       } else {
-          console.log(`   🌍 Full Sync: Fetching all items`);
+          console.log(`    Full Sync: Fetching all items`);
       }
 
       // --- CUSTOMERS ---
@@ -151,10 +151,36 @@ async function ingest() {
                   }).onConflictDoUpdate({
                       target: [orders.shopifyId, orders.tenantId],
                       set: {
-                          financialStatus: node.displayFinancialStatus,
                           fulfillmentStatus: node.displayFulfillmentStatus,
                       }
                   });
+
+                  // Ingest Order Items
+                  if (node.lineItems?.edges) {
+                      // We need the local order ID. Since we just upserted, we can query it or use the shopifyId to find it.
+                      // Ideally, we should get the ID from the insert, but .onConflictDoUpdate doesn't always return it easily in all drivers without `returning`.
+                      // Let's fetch the order we just inserted/updated.
+                      const [localOrder] = await db.select().from(orders).where(and(eq(orders.shopifyId, node.id), eq(orders.tenantId, tenant.id)));
+
+                      if (localOrder) {
+                          for (const liEdge of node.lineItems.edges) {
+                              const li = liEdge.node;
+                              let productId = null;
+                              if (li.product?.id) {
+                                  const [prod] = await db.select().from(products).where(and(eq(products.shopifyId, li.product.id), eq(products.tenantId, tenant.id)));
+                                  productId = prod?.id;
+                              }
+
+                              await db.insert(orderItems).values({
+                                  orderId: localOrder.id,
+                                  productId: productId,
+                                  title: li.title,
+                                  quantity: li.quantity,
+                                  price: li.originalTotalSet?.shopMoney?.amount || '0',
+                              });
+                          }
+                      }
+                  }
               }
               console.log(`    Synced batch of ${ordersData.orders.edges.length} orders`);
 

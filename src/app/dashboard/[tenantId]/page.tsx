@@ -17,6 +17,8 @@ import { AcquisitionChart } from "@/components/acquisition-chart";
 import { ModeToggle } from "@/components/mode-toggle";
 import { LogoutButton } from "@/components/logout-button";
 import { AutoSync } from "@/components/auto-sync";
+import { RecentProductSales } from "@/components/recent-product-sales";
+import { orderItems } from "@/db/schema";
 
 interface DashboardPageProps {
   params: Promise<{
@@ -257,6 +259,27 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
     amount: `${order.totalPrice}`
   }));
 
+  // 7. Recent Product Sales
+  const recentProductSalesRaw = await db
+    .select({
+        title: orderItems.title,
+        quantity: orderItems.quantity,
+        price: orderItems.price,
+        createdAt: orders.createdAt,
+    })
+    .from(orderItems)
+    .innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(eq(orders.tenantId, tenantId))
+    .orderBy(desc(orders.createdAt))
+    .limit(5);
+
+  const recentProductSales = recentProductSalesRaw.map(item => ({
+      productName: item.title || 'Unknown Product',
+      quantity: item.quantity || 0,
+      price: item.price ? `$${item.price}` : '$0.00',
+      date: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '',
+  }));
+
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-muted/20 min-h-screen">
       <AutoSync tenantId={tenantId} lastSyncedAt={tenant.lastSyncedAt} />
@@ -414,6 +437,18 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
           <CardContent>
             <RecentSales sales={recentSales} />
           </CardContent>
+        </Card>
+      </div>
+
+      {/* RECENT PRODUCT SALES */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4">
+            <CardHeader>
+                <CardTitle>Recent Product Sales</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <RecentProductSales sales={recentProductSales} />
+            </CardContent>
         </Card>
       </div>
     </div>
