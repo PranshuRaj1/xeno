@@ -1,0 +1,19 @@
+name: Scheduled Ingestion
+
+on:
+  schedule:
+    - cron: '30 3-11 * * *'
+  workflow_dispatch:
+
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Call Ingestion API
+        run: |
+          curl -X GET "$APP_URL/api/cron/ingest" \
+          -H "Authorization: Bearer $CRON_SECRET" \
+          --fail
