@@ -21,6 +21,11 @@ export function SyncButton({ tenantId }: { tenantId: number }) {
       console.log("------------------------------------");
       
       console.log(tenantId);
+
+      console.log("************************************");
+      console.log(res);
+      
+      
       
       
       if (!res.ok) throw new Error('Sync failed', { cause: res })

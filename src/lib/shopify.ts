@@ -33,8 +33,8 @@ export async function fetchShopify(shop: string, accessToken: string, query: str
 }
 
 export const GET_CUSTOMERS_QUERY = `
-  query getCustomers($first: Int!, $cursor: String) {
-    customers(first: $first, after: $cursor) {
+  query getCustomers($first: Int!, $cursor: String, $query: String) {
+    customers(first: $first, after: $cursor, query: $query) {
       pageInfo {
         hasNextPage
         endCursor
@@ -57,8 +57,8 @@ export const GET_CUSTOMERS_QUERY = `
 `;
 
 export const GET_PRODUCTS_QUERY = `
-  query getProducts($first: Int!, $cursor: String) {
-    products(first: $first, after: $cursor) {
+  query getProducts($first: Int!, $cursor: String, $query: String) {
+    products(first: $first, after: $cursor, query: $query) {
       pageInfo {
         hasNextPage
         endCursor
@@ -79,8 +79,8 @@ export const GET_PRODUCTS_QUERY = `
 `;
 
 export const GET_ORDERS_QUERY = `
-  query getOrders($first: Int!, $cursor: String) {
-    orders(first: $first, after: $cursor) {
+  query getOrders($first: Int!, $cursor: String, $query: String) {
+    orders(first: $first, after: $cursor, query: $query, sortKey: CREATED_AT, reverse: true) {
       pageInfo {
         hasNextPage
         endCursor

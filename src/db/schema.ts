@@ -11,6 +11,7 @@ export const tenants = pgTable('tenants', {
   accessToken: text('access_token').notNull(), // The 'shpat_' token
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
+  lastSyncedAt: timestamp('last_synced_at'),
 });
 
 // ----------------------------------------------------------------------
@@ -81,6 +82,23 @@ export const orders = pgTable('orders', {
 });
 
 // ----------------------------------------------------------------------
+// 4b. ORDER ITEMS (Linking Orders to Products)
+// ----------------------------------------------------------------------
+export const orderItems = pgTable('order_items', {
+  id: serial('id').primaryKey(),
+  orderId: integer('order_id').references(() => orders.id).notNull(),
+  productId: integer('product_id').references(() => products.id), // Nullable if product deleted locally
+  
+  quantity: integer('quantity').default(1),
+  price: numeric('price'), // Price at time of purchase
+  title: text('title'), // Snapshot of product title
+}, (table) => {
+  return {
+    // Optional: Index for faster lookups
+  };
+});
+
+// ----------------------------------------------------------------------
 // 5. USERS (Dashboard Access)
 // ----------------------------------------------------------------------
 export const users = pgTable('users', {
@@ -103,7 +121,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   users: many(users),
 }));
 
-export const ordersRelations = relations(orders, ({ one }) => ({
+export const ordersRelations = relations(orders, ({ one, many }) => ({
   tenant: one(tenants, {
     fields: [orders.tenantId],
     references: [tenants.id],
@@ -111,6 +129,18 @@ export const ordersRelations = relations(orders, ({ one }) => ({
   customer: one(customers, {
     fields: [orders.customerId],
     references: [customers.id],
+  }),
+  items: many(orderItems),
+}));
+
+export const orderItemsRelations = relations(orderItems, ({ one }) => ({
+  order: one(orders, {
+    fields: [orderItems.orderId],
+    references: [orders.id],
+  }),
+  product: one(products, {
+    fields: [orderItems.productId],
+    references: [products.id],
   }),
 }));
 

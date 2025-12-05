@@ -16,6 +16,7 @@ import { TopCustomers } from "@/components/top-customers";
 import { AcquisitionChart } from "@/components/acquisition-chart";
 import { ModeToggle } from "@/components/mode-toggle";
 import { LogoutButton } from "@/components/logout-button";
+import { AutoSync } from "@/components/auto-sync";
 
 interface DashboardPageProps {
   params: Promise<{
@@ -258,6 +259,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
 
   return (
     <div className="flex-1 space-y-8 p-8 pt-6 bg-muted/20 min-h-screen">
+      <AutoSync tenantId={tenantId} lastSyncedAt={tenant.lastSyncedAt} />
       <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between relative z-10">
         <div className="flex items-center space-x-4">
             <TenantSwitcher tenants={allTenants} currentTenantId={tenantId} />

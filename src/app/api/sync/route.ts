@@ -20,8 +20,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
+    console.log(`\n=== SYNC STARTED FOR TENANT: ${tenant.storeName} (${tenant.storeDomain}) ===`);
+    console.log(`Tenant ID: ${tenant.id}`);
+    console.log(`Last Synced At: ${tenant.lastSyncedAt}`);
+
+    // Determine Sync Mode (Full vs Incremental)
+    let queryParams: any = { first: 100 };
+    if (tenant.lastSyncedAt) {
+        const lastSyncISO = tenant.lastSyncedAt.toISOString();
+        queryParams.query = `updated_at:>'${lastSyncISO}'`;
+        console.log(` Incremental Sync: Fetching items updated after ${lastSyncISO}`);
+    } else {
+        console.log(` Full Sync: Fetching all items (limit 100)`);
+    }
+
     // 1. Sync Customers
-    const customersData = await fetchShopify(tenant.storeDomain, tenant.accessToken, GET_CUSTOMERS_QUERY, { first: 10 });
+    const customersData = await fetchShopify(tenant.storeDomain, tenant.accessToken, GET_CUSTOMERS_QUERY, queryParams);
     if (customersData?.customers?.edges) {
         for (const edge of customersData.customers.edges) {
         const node = edge.node;
@@ -47,7 +61,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Sync Products
-    const productsData = await fetchShopify(tenant.storeDomain, tenant.accessToken, GET_PRODUCTS_QUERY, { first: 10 });
+    const productsData = await fetchShopify(tenant.storeDomain, tenant.accessToken, GET_PRODUCTS_QUERY, queryParams);
     if (productsData?.products?.edges) {
         for (const edge of productsData.products.edges) {
             const node = edge.node;
@@ -71,10 +85,14 @@ export async function POST(request: Request) {
     }
 
     // 3. Sync Orders
-    const ordersData = await fetchShopify(tenant.storeDomain, tenant.accessToken, GET_ORDERS_QUERY, { first: 10 });
+    console.log('--- Fetching Orders ---');
+    const ordersData = await fetchShopify(tenant.storeDomain, tenant.accessToken, GET_ORDERS_QUERY, queryParams);
     if (ordersData?.orders?.edges) {
+        console.log(`Fetched ${ordersData.orders.edges.length} orders from Shopify.`);
         for (const edge of ordersData.orders.edges) {
             const node = edge.node;
+            console.log(`Processing Order: ${node.id} | Created: ${node.createdAt} | Financial: ${node.displayFinancialStatus}`);
+            
             // Find customer internal ID if exists
             let customerId = null;
             if (node.customer?.id) {
@@ -102,6 +120,13 @@ export async function POST(request: Request) {
             });
         }
     }
+
+    // 4. Update lastSyncedAt
+    await db.update(tenants)
+    // Update lastSyncedAt
+    await db.update(tenants)
+        .set({ lastSyncedAt: new Date() })
+        .where(eq(tenants.id, tenant.id));
 
     return NextResponse.json({ success: true, message: 'Sync completed successfully' });
   } catch (error: any) {
