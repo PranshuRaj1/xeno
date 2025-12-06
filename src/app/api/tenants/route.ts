@@ -1,27 +1,31 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { tenants } from '@/db/schema';
+import { encrypt } from '@/lib/encryption';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { storeName, storeDomain, accessToken } = body;
+    const { storeName, storeDomain, accessToken, clientSecret } = body;
 
     if (!storeName || !storeDomain || !accessToken) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const cleanStoreDomain = storeDomain.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+    const encryptedSecret = clientSecret ? encrypt(clientSecret.trim()) : null;
 
     const newTenant = await db.insert(tenants).values({
       storeName,
       storeDomain: cleanStoreDomain,
       accessToken: accessToken.trim(),
+      clientSecret: encryptedSecret,
     }).onConflictDoUpdate({
         target: tenants.storeDomain,
         set: {
             accessToken: accessToken.trim(),
             storeName: storeName,
+            clientSecret: encryptedSecret, // Update secret if provided
             updatedAt: new Date(),
         }
     }).returning();

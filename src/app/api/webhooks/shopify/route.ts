@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { checkouts, tenants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import crypto from 'crypto';
+import { decrypt } from '@/lib/encryption';
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +12,12 @@ export async function POST(req: Request) {
     const hmac = req.headers.get('x-shopify-hmac-sha256') || '';
     const shopDomain = req.headers.get('x-shopify-shop-domain') || '';
 
-    console.log(`Webhook received: ${topic} from ${shopDomain}`);
+    console.log(`\n--- WEBHOOK RECEIVED ---`);
+    console.log(`Topic: ${topic}`);
+    console.log(`Domain: ${shopDomain}`);
+    console.log(`HMAC: ${hmac}`);
+    console.log(`Body (first 200 chars): ${rawBody.substring(0, 200)}...`);
+    console.log(`------------------------\n`);
 
     // Find Tenant (Handle potential https:// prefix in DB or header)
     // The header usually comes as "store.myshopify.com"
@@ -32,19 +38,30 @@ export async function POST(req: Request) {
     }
 
     
-    const secret = process.env.SHOPIFY_API_SECRET;
-    if (secret) {
-        const hash = crypto
-            .createHmac('sha256', secret)
-            .update(rawBody, 'utf8')
-            .digest('base64');
-        
-        if (hash !== hmac) {
-            console.error('Invalid HMAC signature');
-            return NextResponse.json({ message: 'Invalid signature' }, { status: 401 });
+    // 2. Verify HMAC
+    let secret = process.env.SHOPIFY_API_SECRET;
+
+    if (tenant.clientSecret) {
+        try {
+            secret = decrypt(tenant.clientSecret);
+        } catch (err) {
+            console.error('Failed to decrypt client secret:', err);
         }
-    } else {
-        console.warn('Skipping HMAC verification: SHOPIFY_API_SECRET not set');
+    }
+
+    if (!secret) {
+        console.error(`No clientSecret found for tenant ${tenant.storeDomain} and no global SHOPIFY_API_SECRET set.`);
+        return NextResponse.json({ message: 'Configuration Error: Missing Secret' }, { status: 500 });
+    }
+
+    const hash = crypto
+        .createHmac('sha256', secret)
+        .update(rawBody, 'utf8')
+        .digest('base64');
+    
+    if (hash !== hmac) {
+        console.error(`Invalid HMAC signature for ${tenant.storeDomain}`);
+        return NextResponse.json({ message: 'Invalid signature' }, { status: 401 });
     }
 
     const data = JSON.parse(rawBody);

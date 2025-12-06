@@ -20,6 +20,7 @@ export default function NewTenantPage() {
       storeName: formData.get("storeName"),
       storeDomain: formData.get("storeDomain"),
       accessToken: formData.get("accessToken"),
+      clientSecret: formData.get("clientSecret"),
     }
 
     try {
@@ -60,8 +61,12 @@ export default function NewTenantPage() {
               <Input id="storeDomain" name="storeDomain" placeholder="my-store.myshopify.com" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="accessToken">Access Token</Label>
               <Input id="accessToken" name="accessToken" placeholder="shpat_..." required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="clientSecret">Client Secret (Optional)</Label>
+              <Input id="clientSecret" name="clientSecret" placeholder="shpss_..." />
+              <p className="text-[0.8rem] text-muted-foreground">Required for webhook verification.</p>
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Adding..." : "Add Store"}
