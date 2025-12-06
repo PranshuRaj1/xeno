@@ -9,8 +9,10 @@ export const tenants = pgTable('tenants', {
   storeName: text('store_name').notNull(),
   storeDomain: text('store_domain').notNull().unique(), // e.g., "my-store.myshopify.com"
   accessToken: text('access_token').notNull(), // The 'shpat_' token
+  clientSecret: text('client_secret'), // Per-app Shopify Client Secret for HMAC
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
   lastSyncedAt: timestamp('last_synced_at'),
 });
 
@@ -112,6 +114,29 @@ export const users = pgTable('users', {
 });
 
 // ----------------------------------------------------------------------
+// 6. CHECKOUTS (Abandoned Cart Tracking)
+// ----------------------------------------------------------------------
+export const checkouts = pgTable('checkouts', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id).notNull(),
+  shopifyId: text('shopify_id').notNull(), // Checkout ID
+  cartToken: text('cart_token'),
+  
+  email: text('email'),
+  totalPrice: numeric('total_price'),
+  currency: text('currency'),
+  
+  abandoned: boolean('abandoned').default(false), // Logic: true if no order created after X time
+  
+  createdAt: timestamp('created_at'),
+  updatedAt: timestamp('updated_at'),
+}, (table) => {
+  return {
+    unq: uniqueIndex('checkout_tenant_idx').on(table.shopifyId, table.tenantId),
+  };
+});
+
+// ----------------------------------------------------------------------
 // RELATIONS (For easier Drizzle queries)
 // ----------------------------------------------------------------------
 export const tenantsRelations = relations(tenants, ({ many }) => ({
@@ -119,6 +144,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   products: many(products),
   customers: many(customers),
   users: many(users),
+  checkouts: many(checkouts),
 }));
 
 export const ordersRelations = relations(orders, ({ one, many }) => ({

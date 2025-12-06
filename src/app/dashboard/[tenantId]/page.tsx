@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { customers, orders, tenants } from "@/db/schema";
+import { customers, orders, tenants, orderItems, checkouts } from "@/db/schema";
 import { eq, desc, sql, and, gte, lte } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Overview } from "@/components/overview";
@@ -18,7 +18,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { LogoutButton } from "@/components/logout-button";
 import { AutoSync } from "@/components/auto-sync";
 import { RecentProductSales } from "@/components/recent-product-sales";
-import { orderItems } from "@/db/schema";
+import { CheckoutEvents } from "@/components/checkout-events";
 
 interface DashboardPageProps {
   params: Promise<{
@@ -273,6 +273,21 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
     .orderBy(desc(orders.createdAt))
     .limit(5);
 
+  // Fetch recent checkouts
+  const recentCheckouts = await db.select()
+    .from(checkouts)
+    .where(eq(checkouts.tenantId, tenant.id))
+    .orderBy(desc(checkouts.updatedAt))
+    .limit(5);
+
+  const formattedCheckouts = recentCheckouts.map(c => ({
+      id: c.shopifyId,
+      email: c.email || 'Unknown',
+      status: c.abandoned ? 'Abandoned' : 'Active',
+      totalPrice: c.totalPrice || '0.00',
+      date: c.updatedAt ? c.updatedAt.toLocaleDateString() : '',
+  }));
+
   const recentProductSales = recentProductSalesRaw.map(item => ({
       productName: item.title || 'Unknown Product',
       quantity: item.quantity || 0,
@@ -450,6 +465,7 @@ export default async function DashboardPage({ params, searchParams }: DashboardP
                 <RecentProductSales sales={recentProductSales} />
             </CardContent>
         </Card>
+        <CheckoutEvents checkouts={formattedCheckouts} />
       </div>
     </div>
   );
