@@ -163,6 +163,9 @@ async function ingest() {
                       const [localOrder] = await db.select().from(orders).where(and(eq(orders.shopifyId, node.id), eq(orders.tenantId, tenant.id)));
 
                       if (localOrder) {
+                          // Clear existing items to avoid duplicates
+                          await db.delete(orderItems).where(eq(orderItems.orderId, localOrder.id));
+
                           for (const liEdge of node.lineItems.edges) {
                               const li = liEdge.node;
                               let productId = null;

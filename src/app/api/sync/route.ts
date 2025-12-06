@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { tenants, customers, products, orders } from '@/db/schema';
+import { tenants, customers, products, orders, orderItems } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { fetchShopify, GET_CUSTOMERS_QUERY, GET_PRODUCTS_QUERY, GET_ORDERS_QUERY } from '@/lib/shopify';
 
@@ -114,16 +114,40 @@ export async function POST(request: Request) {
             }).onConflictDoUpdate({
                 target: [orders.shopifyId, orders.tenantId],
                 set: {
-                    financialStatus: node.displayFinancialStatus,
                     fulfillmentStatus: node.displayFulfillmentStatus,
                 }
             });
+
+            // Ingest Order Items
+            if (node.lineItems?.edges) {
+                const [localOrder] = await db.select().from(orders).where(and(eq(orders.shopifyId, node.id), eq(orders.tenantId, tenant.id)));
+
+                if (localOrder) {
+                    // Clear existing items to avoid duplicates
+                    await db.delete(orderItems).where(eq(orderItems.orderId, localOrder.id));
+
+                    for (const liEdge of node.lineItems.edges) {
+                        const li = liEdge.node;
+                        let productId = null;
+                        if (li.product?.id) {
+                            const [prod] = await db.select().from(products).where(and(eq(products.shopifyId, li.product.id), eq(products.tenantId, tenant.id)));
+                            productId = prod?.id;
+                        }
+
+                        await db.insert(orderItems).values({
+                            orderId: localOrder.id,
+                            productId: productId,
+                            title: li.title,
+                            quantity: li.quantity,
+                            price: li.originalTotalSet?.shopMoney?.amount || '0',
+                        });
+                    }
+                }
+            }
         }
     }
 
     // 4. Update lastSyncedAt
-    await db.update(tenants)
-    // Update lastSyncedAt
     await db.update(tenants)
         .set({ lastSyncedAt: new Date() })
         .where(eq(tenants.id, tenant.id));
