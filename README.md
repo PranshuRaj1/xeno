@@ -34,6 +34,7 @@ Xeno is a multi-tenant Shopify analytics and dashboard application built with Ne
     - `CRON_SECRET`: Secret token to secure the ingestion cron job.
     - `APP_URL`: The public URL of your application .
     - `SHOPIFY_API_SECRET`: (Optional) Global fallback for webhook HMAC verification if per-tenant secret is missing.
+    - `RABBITMQ_URL`: Connection URL for your RabbitMQ instance (e.g., `amqps://...` from CloudAMQP or `amqp://localhost` for local).
 
 4.  **Database Migration:**
     Push the schema to your database:
@@ -45,7 +46,15 @@ Xeno is a multi-tenant Shopify analytics and dashboard application built with Ne
     ```bash
     npm run dev
     ```
+
     Open [http://localhost:3000](http://localhost:3000) to view the app.
+
+6.  **Run Background Worker (Optional by default, required for Async Jobs):**
+    Open a new terminal and run:
+    ```bash
+    npm run worker
+    ```
+    This process consumes messages from RabbitMQ to handle asynchronous tasks like data ingestion.
 
 ## 🏗️ Architecture
 
@@ -75,6 +84,7 @@ graph TD
 -   **Styling**: Tailwind CSS
 -   **Auth**: NextAuth.js
 -   **Validation**: Zod
+-   **Messaging**: RabbitMQ (amqplib)
 
 ## 🔌 API Endpoints
 
