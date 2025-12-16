@@ -34,10 +34,10 @@ export async function getChannel() {
   }
 }
 
-export async function publishIngestionTask(tenantId: string) {
+export async function publishIngestionTask(tenantId: string, retryCount: number = 0) {
   try {
     const ch = await getChannel();
-    const msg = JSON.stringify({ tenantId });
+    const msg = JSON.stringify({ tenantId, retryCount });
     return ch.sendToQueue(QUEUE_NAME, Buffer.from(msg), { persistent: true });
   } catch (error) {
     console.error("Failed to publish task", error);

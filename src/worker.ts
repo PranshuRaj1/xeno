@@ -18,8 +18,11 @@ async function startWorker() {
       if (!msg) return;
 
       try {
-        const { tenantId } = JSON.parse(msg.content.toString());
-        console.log(`\n Received task for tenant: ${tenantId}`);
+        const payload = JSON.parse(msg.content.toString());
+        const { tenantId, retryCount = 0 } = payload;
+        const MAX_RETRIES = 3;
+
+        console.log(`\n Received task for tenant: ${tenantId} (Attempt: ${retryCount + 1}/${MAX_RETRIES + 1})`);
         
         await ingestForTenant(tenantId);
         
@@ -27,10 +30,27 @@ async function startWorker() {
         console.log(` Task completed for ${tenantId}`);
       } catch (error) {
         console.error(` Task failed for message:`, error);
-        // We can create a Dead Letter Exchange or just nack with requeue=false if we want to drop it
-        // For now, let's just log it and ack it so we don't loop forever on a bad message
-        // Or un-ack to retry: ch.nack(msg);
-        ch.ack(msg); 
+        
+        const payload = JSON.parse(msg.content.toString());
+        const { tenantId, retryCount = 0 } = payload;
+        const MAX_RETRIES = 3;
+
+        if (retryCount < MAX_RETRIES) {
+             console.log(` Re-queueing task for tenant ${tenantId} in 5 seconds...`);
+             // Wait 5s before re-queueing (simple backoff)
+             await new Promise(r => setTimeout(r, 5000));
+             
+             // We need to import publishIngestionTask but since we are in worker.ts which imports from lib usually...
+             // Let's rely on the fact that we can interact with the channel directly OR import the publisher.
+             // Importing publisher is cleaner to keep logic encapsulated.
+             const { publishIngestionTask } = await import('@/lib/rabbitmq');
+             await publishIngestionTask(tenantId, retryCount + 1);
+        } else {
+             console.error(` CRIMINAL: Max retries reached for tenant ${tenantId}. Task dropped.`);
+             // Here we would push to a Dead Letter Queue or DB table for failed jobs
+        }
+        
+        ch.ack(msg); // Always ack the original message so it doesn't stay in the original queue head
       }
     });
   } catch (error) {

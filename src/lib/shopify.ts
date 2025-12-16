@@ -4,15 +4,51 @@ export async function fetchShopify(shop: string, accessToken: string, query: str
   const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const url = `https://${cleanShop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`;
   
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Access-Token': accessToken,
-    },
-    body: JSON.stringify({ query, variables }),
-    cache: 'no-store',
-  });
+  let response: Response | null = null;
+  const maxRetries = 3;
+  let backoff = 1000; // Start with 1s
+
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': accessToken,
+        },
+        body: JSON.stringify({ query, variables }),
+        cache: 'no-store',
+      });
+
+      if (response.status === 429) {
+        // Rate Limited
+        if (i === maxRetries) break; // Give up
+        
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : backoff;
+        
+        console.warn(` Shopify 429 Rate Limit. Retrying in ${waitTime}ms... (Attempt ${i + 1}/${maxRetries})`);
+        await new Promise(r => setTimeout(r, waitTime));
+        
+        // Exponential backoff if no header provided
+        if (!retryAfter) backoff *= 2; 
+        continue;
+      }
+
+      // If generic 5xx error, maybe we should also retry? For now, let's stick to 429 as strictly planned.
+      break;
+
+    } catch (err) {
+      if (i === maxRetries) throw err;
+      console.warn(` Network error fetching Shopify. Retrying... (${i + 1}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, backoff));
+      backoff *= 2;
+    }
+  }
+
+  if (!response) {
+     throw new Error('Shopify API request failed after retries');
+  }
 
   if (!response.ok) {
     console.error(` Failed to fetch: ${url}`);
